@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"go-jwt-example/core"
 	"go-jwt-example/api"
-	"net/http"
 )
 
 const (
@@ -21,16 +20,16 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	envName := flag.String("e", "development", "environment")
-	logLevelStr := flag.String("l", "info", "log level")
+	//logLevelStr := flag.String("l", "info", "log level")
 	port := flag.Int("p", 8081, "port")
 	flag.Parse()
 
-	logLevel, err := determineLogLevel(*logLevelStr)
-	if err != nil {
-		panic(err)
-	}
+	//logLevel, err := determineLogLevel(*logLevelStr)
+	//if err != nil {
+	//	panic(err)
+	//}
 
-	core := core.New(*envName, logLevel)
+	core := core.New(*envName)
 	defer core.Close()
 	router := mux.NewRouter()
 
@@ -42,7 +41,6 @@ func main() {
 		negroni.NewRecovery(),
 		negroni.NewLogger(),
 	)
-	n.Use()
 	n.UseHandler(router)
 
 	log.Infof("starting %v v%v", *envName, appVersion)
