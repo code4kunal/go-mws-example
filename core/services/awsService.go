@@ -11,10 +11,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"go-jwt-example/core/models/amazon"
+	"fmt"
+
 )
 const (
 
 	LIST_ORDER_URL = "https://mws.amazonservices.in/Orders/2013-09-01"
+	VERSION = "2013-09-01"
 
 )
 var IncompleteRequest = errors.New("incomplete request")
@@ -27,6 +30,7 @@ type Client struct {
 	SignatureMethod  string
 	SignatureVersion string
 	CompanyName      string
+	Operation        string
 }
 
 type AwsCreds struct{
@@ -48,28 +52,34 @@ func NewClient(client Client) Client {
 }
 
 func (this *Client) Request() (req *http.Request, err error) {
-	if this.Method == "" || this.AwsCreds.AccessId == "" || this.AwsCreds.AccessKey == "" ||
+	fmt.Println(this.AwsCreds.MWSAuthToken)
+	fmt.Println(this.AwsCreds.AccessKey)
+	fmt.Println(this.AwsCreds.MerchantId)
+	if this.AwsCreds.AccessId == "" || this.AwsCreds.AccessKey == "" ||
 		this.AwsCreds.MerchantId == "" {
 		err = IncompleteRequest
 		return
 	}
-
-	this.Parameters.Add("Merchant", this.AwsCreds.MerchantId)
+	this.Parameters.Add("SellerId", this.AwsCreds.MerchantId)
 	this.Parameters.Add("AWSAccessKeyId", this.AwsCreds.AccessId)
 	this.Parameters.Add("SignatureMethod", this.SignatureMethod)
 	this.Parameters.Add("SignatureVersion", this.SignatureVersion)
-	this.Parameters.Add("Version", "2009-01-01")
+	this.Parameters.Add("Version", VERSION)
 	this.Parameters.Add("Action", this.Action)
+	this.Parameters.Add("MarketplaceId.Id.1", this.AwsCreds.MarketPlaceId)
+	this.Parameters.Add("MWSAuthToken", this.AwsCreds.MWSAuthToken)
 	this.Parameters.Add("Timestamp", XMLTimestamp(time.Now()))
-	this.Region.Endpoint =  LIST_ORDER_URL
+	this.Parameters.Add("CeatedBefore", XMLTimestamp(time.Now()))
+	this.Parameters.Add("CreatedAfter", XMLTimestamp(time.Now().AddDate(-1, 0, 0)))
+	this.Region.Endpoint, _ =  this.getEndPoint()
 	stringToSign, err := this.StringToSign()
 	if err != nil {
-		return
+		return nil, errors.New("Error in signing request")
 	}
 
 	url, err := url.Parse(this.Region.Endpoint)
 	if err != nil {
-		return
+		return nil, errors.New("Error in parsing url")
 	}
 	signature := Sign(stringToSign, []byte(this.AwsCreds.AccessKey))
 	this.Parameters.Add("Signature", signature)
@@ -94,6 +104,7 @@ func CanonicalizedQueryString(values url.Values) (str string) {
 	str = strings.Replace(str, "+", "%20", -1)
 	return
 }
+
 func (this *Client) StringToSign() (stringToSign string, err error) {
 	endpoint, err := url.Parse(this.Region.Endpoint)
 	if err != nil {
@@ -105,14 +116,24 @@ func (this *Client) StringToSign() (stringToSign string, err error) {
 		endpoint.Path,
 		CanonicalizedQueryString(this.Parameters),
 	}, "\n")
-
+	fmt.Println("String to sign \n" ,stringToSign)
 	return
 }
 
 func Sign(str string, key []byte) string {
 	mac := hmac.New(sha256.New, key)
 	mac.Write([]byte(str))
+	fmt.Println(base64.StdEncoding.EncodeToString(mac.Sum(nil)))
 	return base64.StdEncoding.EncodeToString(mac.Sum(nil))
+}
+
+func (this *Client) getEndPoint() (endpoint string, err error) {
+	if (this.Operation == "ListOrders"){
+		return LIST_ORDER_URL, nil
+	} else {
+		return "",errors.New("Invalid operation")
+	}
+
 }
 
 //func GetOrders(r *http.Request)( error){

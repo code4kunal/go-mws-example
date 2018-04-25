@@ -5,19 +5,24 @@ import (
 	"github.com/gorilla/mux"
 	"net/http"
 	"go-jwt-example/core"
-	"github.com/ezkl/go-amazon-mws-api"
 	"go-jwt-example/core/services"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net/url"
+	"bytes"
 )
 
 
 const (
 	apiVersion = "1"
+	LIST_ORDER= "ListOrders"
+	POST="POST"
+	GET="GET"
+	CREATE_INVOICE_SOCKET_FLOW="https://sokt.io/FH4S7ryuTn7u5SLwbVgu/amazon-flow-amazon-create-invoice"
+
 )
 
-var awsApi amazonmws.AmazonMWSAPI
 // API Container object
 type API struct {
 	AppVersion string
@@ -65,6 +70,9 @@ func (api *API) validate(w http.ResponseWriter, r *http.Request) {
 
 func (api *API) parseRequestAndCreateInvoice(w http.ResponseWriter, r *http.Request) {
 	 var client services.Client
+	 client.Operation = LIST_ORDER
+	 client.Action = LIST_ORDER
+	 client.Method = POST
  	 AwsClient := services.NewClient(client)
 	 creds:= services.AwsCreds{
 		 AccessId: "AKIAJEHLC4BUI5SKV3PA",
@@ -72,24 +80,29 @@ func (api *API) parseRequestAndCreateInvoice(w http.ResponseWriter, r *http.Requ
 		 MerchantId: "A17LG0A22TE4YC",
 		 MarketPlaceId: "A21TJRUUN4KGV",
 		 MWSAuthToken: "amzn.mws.bcb17b76-c55b-3243-86c4-535f72857242",
+
 	 }
    AwsClient.AwsCreds = creds
-   fmt.Println(AwsClient)
+
    req, err := AwsClient.Request()
    if(err!= nil){
+   	fmt.Println(err)
    	renderError(w, errors.New("Bad Request"), 400)
    }
 
 	awsPostClient := &http.Client{}
 	resp, err := awsPostClient.Do(req)
+	url, err := url.Parse(CREATE_INVOICE_SOCKET_FLOW)
 	if err != nil {
+		return
+	}
+	body, _ := ioutil.ReadAll(resp.Body)
+	req, err = http.NewRequest(POST, url.String(), bytes.NewReader(body))
+	awsPostClient.Do(req)
+	if err != nil {
+		fmt.Println("Error in making post req")
 		panic(err)
 	}
 	defer resp.Body.Close()
-
-	fmt.Println("response Status:", resp.Status)
-	fmt.Println("response Headers:", resp.Header)
-	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("response Body:", string(body))
 
 }
